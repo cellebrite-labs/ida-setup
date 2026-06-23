@@ -98,13 +98,17 @@ The tool snapshots entry points before and after installation, and only creates 
 
 ## Managing symlinks
 
-`plugin list` shows all entries in `~/.idapro/plugins` and `~/.idapro/loaders`, distinguishing symlinks (with their targets), broken symlinks, regular files, and directories. Entry-point-managed symlinks are shown in bold with the package name (e.g. `[keypatch]`); manually created symlinks have no tag.
+`plugin list` shows all entries in `~/.idapro/plugins` and `~/.idapro/loaders`, distinguishing symlinks (with their targets), broken symlinks, missing entry-point links, regular files, and directories. Entry-point-managed symlinks are shown in bold with the package name (e.g. `[keypatch]`); manually created symlinks have no tag.
 
-`plugin relink` re-discovers all `ida_plugins` and `ida_loaders` entry points from installed packages and recreates their symlinks. Use this after manually removing a symlink or after upgrading a package outside of `ida-setup`.
+`plugin uninstall` uninstalls a package and removes its `ida_plugins`/`ida_loaders` entry points.
+
+`plugin relink` re-discovers `ida_plugins` and `ida_loaders` entry points from installed packages and recreates their symlinks. Use this after manually removing a symlink or after upgrading a package outside of `ida-setup`. Pass a package name to relink only that package's entry points.
 
 ```bash
 ida-setup plugin list
+ida-setup plugin uninstall keypatch
 ida-setup plugin relink
+ida-setup plugin relink keypatch
 ```
 
 ## Comparison with hcli

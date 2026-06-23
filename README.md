@@ -1,6 +1,8 @@
 # ida-setup
 
-IDA Pro Python environment toolkit for macOS. Manage IDA's Python runtime — venv, idapyswitch, LaunchAgent, plugins.
+IDA Pro Python environment toolkit for macOS. Manage IDA's Python runtime: venv, idapyswitch, LaunchAgent, plugins.
+
+`ida-setup` exists to make IDA setup easier on macOS. It creates a venv and points IDA at it, refreshes `idapyswitch`, `idapro`, and `idalib` after IDA upgrades, and installs or removes packages and plugins.
 
 For AI agent integration: `skills/ida-setup/SKILL.md`.
 
@@ -11,13 +13,38 @@ For AI agent integration: `skills/ida-setup/SKILL.md`.
 - [pyenv](https://github.com/pyenv/pyenv) with a framework-enabled Python 3.12+
 - [uv](https://github.com/astral-sh/uv)
 
-Python must be built as a framework for `idapyswitch` to work. With pyenv:
+Python must be built as a framework for `idapyswitch` to work.
+
+## Why pyenv
+
+We need a Python whose location and version stay under our control.
+
+- System python: outdated, Apple-managed, and you can't pin a version.
+- Homebrew python: location and version move on upgrade, including via unrelated formulae.
+- pyenv: a stable user-owned path and an exact pinned patch release that changes only when you change it.
+
+So `ida-setup` supports and tests pyenv, everything else is untested.
+
+## Setting up pyenv Python
+
+If you do not have pyenv, install it first:
+
+```bash
+brew install pyenv
+```
+
+Then install a concrete Python 3.12+ patch release. Replace `3.12.x` with a version from `pyenv install --list`.
+`--enable-framework` is what makes it the framework build `idapyswitch` requires.
 
 ```bash
 PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install 3.12.x
 ```
 
-Other Python distributions (Homebrew, system, conda) are untested and likely won't work.
+Then select it so `pyenv which python` resolves to this build:
+
+```bash
+pyenv global 3.12.x
+```
 
 ## Installation
 
@@ -46,7 +73,7 @@ ida-setup pip install foo bar
   - `--python ida` — launch IDA, probe its runtime, use that interpreter. Slow: launches IDA each time.
   - `--python /path/to/python3` — explicit path
 
-venv — `~/.idapro/venv` is the shared Python environment for both UI IDA and headless idalib. The supported setup is pyenv framework Python. `idapro` is installed/upgraded and IDA's `idapyswitch` setting is refreshed each time you run `ida-setup venv`.
+venv — `~/.idapro/venv` is the Python environment IDA uses. The supported setup is pyenv framework Python. `idapro` is installed/upgraded and IDA's `idapyswitch` setting is refreshed each time you run `ida-setup venv`.
 
 ## Commands
 
@@ -104,10 +131,17 @@ ida-setup plugin install keypatch
 ida-setup plugin install -e /path/to/keypatch
 ```
 
-Recreate all entry point symlinks (e.g. after manually removing one):
+Uninstall a package and remove its `ida_plugins`/`ida_loaders` entry points:
 
 ```bash
-ida-setup plugin relink
+ida-setup plugin uninstall keypatch
+```
+
+Recreate entry point symlinks (e.g. after manually removing one):
+
+```bash
+ida-setup plugin relink          # all packages
+ida-setup plugin relink keypatch # one package
 ```
 
 ## Plugin packaging
@@ -128,14 +162,6 @@ For the full details — motivation, packaging guide, naming conventions, and co
 - `--yes` — skip prompts; required for non-interactive runs
 - `--verbose` — debug logging; with `status --probe` also prints full probe JSON
 - `--force` (on `plugin link`/`plugin unlink`) — allow overwriting existing symlinks or deleting real files and directories
-
-## Migration from idalib-venv
-
-If you previously used `~/.idapro/idalib-venv`, run `ida-setup status` — it will flag the old directory as stale and safe to remove:
-
-```bash
-rm -rf ~/.idapro/idalib-venv
-```
 
 ## Testing
 

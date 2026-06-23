@@ -6,7 +6,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ida_setup._plugins import _discover_entrypoints, _link_entrypoints, plugins_install, plugins_relink
+from ida_setup._plugins import (
+    _discover_entrypoints,
+    _link_entrypoints,
+    plugins_install,
+    plugins_relink,
+    plugins_uninstall,
+)
 
 
 class TestLinkEntrypoints:
@@ -72,7 +78,8 @@ class TestDiscoverEntrypoints:
         assert result == expected
         call_args = mock_run.call_args
         assert call_args[0][0][0] == "/usr/bin/python3"
-        assert call_args[0][0][1] == "-c"
+        assert call_args[0][0][1] == "-I"
+        assert call_args[0][0][2] == "-c"
         assert call_args[1]["check"] is True
         assert call_args[1]["capture"] is True
 
@@ -330,6 +337,81 @@ class TestPluginsInstall:
         assert link.resolve() == new_origin.resolve()
         assert "ok: installed" in capsys.readouterr().out
 
+    def test_uninstall_removes_entrypoints(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        plugin_origin = tmp_path / "src" / "myplugin.py"
+        loader_origin = tmp_path / "src" / "myloader.py"
+        kept_origin = tmp_path / "src" / "kept.py"
+        plugin_origin.parent.mkdir()
+        plugin_origin.write_text("# plugin")
+        loader_origin.write_text("# loader")
+        kept_origin.write_text("# kept")
+
+        before_data = {
+            "plugins": {
+                "myplugin": {"origin": str(plugin_origin), "dist": "plugin-pkg"},
+                "kept": {"origin": str(kept_origin), "dist": "kept-pkg"},
+            },
+            "loaders": {"myloader": {"origin": str(loader_origin), "dist": "plugin-pkg"}},
+        }
+        after_data = {"plugins": {"kept": {"origin": str(kept_origin), "dist": "kept-pkg"}}, "loaders": {}}
+        results = [MagicMock(), MagicMock()]
+        results[0].stdout = json.dumps(before_data)
+        results[1].stdout = json.dumps(after_data)
+
+        plugins_dir = tmp_path / "plugins"
+        loaders_dir = tmp_path / "loaders"
+        plugins_dir.mkdir()
+        loaders_dir.mkdir()
+        (plugins_dir / "myplugin_plugin.py").symlink_to(plugin_origin)
+        (plugins_dir / "kept_plugin.py").symlink_to(kept_origin)
+        (loaders_dir / "myloader_loader.py").symlink_to(loader_origin)
+
+        calls: list[list[str]] = []
+
+        def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
+            calls.append(cmd)
+            if len(calls) == 2:
+                return MagicMock()
+            return results.pop(0)
+
+        with (
+            patch("ida_setup._plugins.run", side_effect=fake_run),
+            patch("ida_setup._plugins.PLUGINS_DIR", plugins_dir),
+            patch("ida_setup._plugins.LOADERS_DIR", loaders_dir),
+        ):
+            rc = plugins_uninstall(pkg_names=["plugin-pkg"], python_exe=Path("/usr/bin/python3"))
+
+        assert rc == 0
+        assert calls[1] == ["uv", "pip", "uninstall", "plugin-pkg", "--python", "/usr/bin/python3"]
+        assert not (plugins_dir / "myplugin_plugin.py").exists()
+        assert (plugins_dir / "kept_plugin.py").is_symlink()
+        assert not (loaders_dir / "myloader_loader.py").exists()
+        out = capsys.readouterr().out
+        assert "plugin:" in out
+        assert "loader:" in out
+        assert "ok: uninstalled" in out
+
+    def test_uninstall_no_entrypoints_removed(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        ep_data = {"plugins": {}, "loaders": {}}
+        results = [MagicMock(), MagicMock()]
+        results[0].stdout = json.dumps(ep_data)
+        results[1].stdout = json.dumps(ep_data)
+
+        def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
+            if cmd[0] == "uv":
+                return MagicMock()
+            return results.pop(0)
+
+        with (
+            patch("ida_setup._plugins.run", side_effect=fake_run),
+            patch("ida_setup._plugins.PLUGINS_DIR", tmp_path / "plugins"),
+            patch("ida_setup._plugins.LOADERS_DIR", tmp_path / "loaders"),
+        ):
+            rc = plugins_uninstall(pkg_names=["plain-pkg"], python_exe=Path("/usr/bin/python3"))
+
+        assert rc == 0
+        assert "no ida_plugins or ida_loaders entry points removed" in capsys.readouterr().out
+
     def test_relink_recreates_all(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         origin = tmp_path / "src" / "existing.py"
         origin.parent.mkdir()
@@ -351,6 +433,62 @@ class TestPluginsInstall:
         assert rc == 0
         assert (plugins_dir / "existing_plugin.py").is_symlink()
         assert "ok: relinked" in capsys.readouterr().out
+
+    def test_relink_filters_by_pkg(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        plugin_origin = tmp_path / "src" / "target_plugin.py"
+        other_plugin_origin = tmp_path / "src" / "other_plugin.py"
+        loader_origin = tmp_path / "src" / "target_loader.py"
+        other_loader_origin = tmp_path / "src" / "other_loader.py"
+        plugin_origin.parent.mkdir()
+        plugin_origin.write_text("# target plugin")
+        other_plugin_origin.write_text("# other plugin")
+        loader_origin.write_text("# target loader")
+        other_loader_origin.write_text("# other loader")
+
+        ep_data = {
+            "plugins": {
+                "target": {"origin": str(plugin_origin), "dist": "target-pkg"},
+                "other": {"origin": str(other_plugin_origin), "dist": "other-pkg"},
+            },
+            "loaders": {
+                "target_loader": {"origin": str(loader_origin), "dist": "target-pkg"},
+                "other_loader": {"origin": str(other_loader_origin), "dist": "other-pkg"},
+            },
+        }
+        mock_result = MagicMock()
+        mock_result.stdout = json.dumps(ep_data)
+
+        plugins_dir = tmp_path / "plugins"
+        loaders_dir = tmp_path / "loaders"
+
+        with (
+            patch("ida_setup._plugins.run", return_value=mock_result),
+            patch("ida_setup._plugins.PLUGINS_DIR", plugins_dir),
+            patch("ida_setup._plugins.LOADERS_DIR", loaders_dir),
+        ):
+            rc = plugins_relink(python_exe=Path("/usr/bin/python3"), pkg_name="target_pkg")
+
+        assert rc == 0
+        assert (plugins_dir / "target_plugin.py").is_symlink()
+        assert not (plugins_dir / "other_plugin.py").exists()
+        assert (loaders_dir / "target_loader_loader.py").is_symlink()
+        assert not (loaders_dir / "other_loader_loader.py").exists()
+        assert "ok: relinked" in capsys.readouterr().out
+
+    def test_relink_pkg_no_entrypoints(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        ep_data = {"plugins": {"other": {"origin": str(tmp_path / "other.py"), "dist": "other-pkg"}}, "loaders": {}}
+        mock_result = MagicMock()
+        mock_result.stdout = json.dumps(ep_data)
+
+        with (
+            patch("ida_setup._plugins.run", return_value=mock_result),
+            patch("ida_setup._plugins.PLUGINS_DIR", tmp_path / "plugins"),
+            patch("ida_setup._plugins.LOADERS_DIR", tmp_path / "loaders"),
+        ):
+            rc = plugins_relink(python_exe=Path("/usr/bin/python3"), pkg_name="missing-pkg")
+
+        assert rc == 0
+        assert "no ida_plugins or ida_loaders entry points found for missing-pkg" in capsys.readouterr().out
 
     def test_relink_no_entrypoints(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         ep_data = {"plugins": {}, "loaders": {}}

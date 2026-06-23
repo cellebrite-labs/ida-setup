@@ -9,9 +9,6 @@ wheels/
 # Virtual environments
 .venv/
 
-# Lock file
-uv.lock
-
 # Tool caches
 .pytest_cache/
 .ruff_cache/

@@ -34,7 +34,14 @@ from ida_setup._launchagent import (
     is_launch_agent_loaded,
     is_launch_agent_up_to_date,
 )
-from ida_setup._plugins import plugins_install, plugins_link, plugins_list, plugins_relink, plugins_unlink
+from ida_setup._plugins import (
+    plugins_install,
+    plugins_link,
+    plugins_list,
+    plugins_relink,
+    plugins_uninstall,
+    plugins_unlink,
+)
 from ida_setup._probe import run_probe
 from ida_setup._run import clean_env_for_python_exec, require_core_tools, run
 from ida_setup._venv import (
@@ -147,13 +154,13 @@ def cmd_status(args: argparse.Namespace) -> int:
     if PLIST_PATH.exists():
         loaded = is_launch_agent_loaded()
         print(f"  plist:  {_style(_DIM, str(PLIST_PATH))}")
-        loaded_val = _style(_GREEN, 'yes') if loaded else _style(_RED, 'no')
+        loaded_val = _style(_GREEN, "yes") if loaded else _style(_RED, "no")
         print(f"  loaded: {loaded_val}")
         var = get_ida_venv_var()
         print(f"  IDAPYTHON_VENV_EXECUTABLE: {_style(_DIM, var or '(not set)')}")
         if venv_python:
             up_to_date = is_launch_agent_up_to_date(venv_python)
-            utd_val = _style(_GREEN, 'yes') if up_to_date else _style(_RED, 'no')
+            utd_val = _style(_GREEN, "yes") if up_to_date else _style(_RED, "no")
             print(f"  up-to-date: {utd_val}")
     else:
         print(f"  {_style(_RED, 'not installed')}")
@@ -305,9 +312,14 @@ def cmd_plugins_install(args: argparse.Namespace) -> int:
     return plugins_install(pip_args=pip_args, python_exe=python_exe)
 
 
+def cmd_plugins_uninstall(args: argparse.Namespace) -> int:
+    python_exe = _resolve_default_python(args)
+    return plugins_uninstall(pkg_names=args.pkg, python_exe=python_exe)
+
+
 def cmd_plugins_relink(args: argparse.Namespace) -> int:
     python_exe = _resolve_default_python(args)
-    return plugins_relink(python_exe=python_exe)
+    return plugins_relink(python_exe=python_exe, pkg_name=args.pkg)
 
 
 def cmd_pip(args: argparse.Namespace) -> int:
@@ -458,11 +470,20 @@ def main(argv: list[str] | None = None) -> int:
     # Append [pip-args ...] to the auto-generated usage.
     p_plugin_install.usage = p_plugin_install.format_usage().removeprefix("usage: ").rstrip() + " [pip-args ...]"
 
-    p_plugin_relink = plugin_sub.add_parser(
-        "relink",
-        help="Recreate all ida_plugins/ida_loaders entry point symlinks",
+    p_plugin_uninstall = plugin_sub.add_parser(
+        "uninstall",
+        help="Uninstall packages and remove their ida_plugins/ida_loaders entry points",
         parents=[common],
     )
+    p_plugin_uninstall.add_argument("pkg", nargs="+", help="Package to uninstall")
+    p_plugin_uninstall.set_defaults(func=cmd_plugins_uninstall)
+
+    p_plugin_relink = plugin_sub.add_parser(
+        "relink",
+        help="Recreate ida_plugins/ida_loaders entry point symlinks",
+        parents=[common],
+    )
+    p_plugin_relink.add_argument("pkg", nargs="?", help="Only relink entry points from this package")
     p_plugin_relink.set_defaults(func=cmd_plugins_relink)
 
     # pip / python

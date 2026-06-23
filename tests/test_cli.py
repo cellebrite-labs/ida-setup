@@ -286,17 +286,41 @@ class TestArgParsing:
         assert captured["verbose"] is False
         assert captured["passthrough"] == ["--verbose", "keypatch"]
 
+    def test_plugin_uninstall_dispatches(self) -> None:
+        captured = {}
+
+        def fake_uninstall(args: argparse.Namespace) -> int:
+            captured["pkg"] = args.pkg
+            return 0
+
+        with patch("ida_setup.cli.cmd_plugins_uninstall", fake_uninstall):
+            rc = self._run(["plugin", "uninstall", "keypatch"])
+        assert rc == 0
+        assert captured["pkg"] == ["keypatch"]
+
     def test_plugin_relink_dispatches(self) -> None:
         captured = {}
 
         def fake_relink(args: argparse.Namespace) -> int:
-            captured["called"] = True
+            captured["pkg"] = args.pkg
             return 0
 
         with patch("ida_setup.cli.cmd_plugins_relink", fake_relink):
             rc = self._run(["plugin", "relink"])
         assert rc == 0
-        assert captured["called"]
+        assert captured["pkg"] is None
+
+    def test_plugin_relink_pkg_dispatches(self) -> None:
+        captured = {}
+
+        def fake_relink(args: argparse.Namespace) -> int:
+            captured["pkg"] = args.pkg
+            return 0
+
+        with patch("ida_setup.cli.cmd_plugins_relink", fake_relink):
+            rc = self._run(["plugin", "relink", "keypatch"])
+        assert rc == 0
+        assert captured["pkg"] == "keypatch"
 
     def test_pip_passthrough(self) -> None:
         captured = {}

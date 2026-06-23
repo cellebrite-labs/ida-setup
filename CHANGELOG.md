@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-23
+
+### Added
+- `plugin uninstall <pkg>...` removes packages and their `ida_plugins`/`ida_loaders` entry-point symlinks.
+- `plugin relink <pkg>` accepts a package filter to relink a single distribution instead of all.
+
+### Changed
+- `plugin list` distinguishes loadable entries from ignored filenames, flags missing managed entry points, and shows broken symlink targets.
+
+### Fixed
+- Run plugin entry-point discovery in isolated mode (`python -I`) so the user's site/env customizations can't interfere.
+
 ## [0.3.2] - 2026-05-21
 
 ### Added

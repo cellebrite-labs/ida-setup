@@ -102,6 +102,7 @@ class TestPluginsList:
         with (
             patch("ida_setup._plugins.PLUGINS_DIR", tmp_path / "no-plugins"),
             patch("ida_setup._plugins.LOADERS_DIR", tmp_path / "no-loaders"),
+            patch("ida_setup._plugins._get_managed_targets", return_value={"plugins": {}, "loaders": {}}),
         ):
             rc = plugins_list()
 
@@ -130,9 +131,9 @@ class TestPluginsList:
         plugins.mkdir()
         real = tmp_path / "real.py"
         real.write_text("# plugin")
-        (plugins / "myplugin.py").symlink_to(real)
+        (plugins / "myplugin_plugin.py").symlink_to(real)
 
-        managed = {str(real.resolve()): "my-package"}
+        managed = {"myplugin": {"origin": str(real.resolve()), "dist": "my-package"}}
         with (
             patch("ida_setup._plugins.PLUGINS_DIR", plugins),
             patch("ida_setup._plugins.LOADERS_DIR", tmp_path / "loaders"),
@@ -177,7 +178,26 @@ class TestPluginsList:
         assert rc == 0
         out = capsys.readouterr().out
         assert "(broken)" in out
+        assert str(tmp_path / "nonexistent.py") in out
         assert "[" not in out
+
+    def test_missing_managed_entrypoint_shown(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        plugins = tmp_path / "plugins"
+        plugins.mkdir()
+        origin = tmp_path / "referee.py"
+        origin.write_text("# plugin")
+        managed = {"referee": {"origin": str(origin.resolve()), "dist": "ida-referee"}}
+
+        with (
+            patch("ida_setup._plugins.PLUGINS_DIR", plugins),
+            patch("ida_setup._plugins.LOADERS_DIR", tmp_path / "loaders"),
+            patch("ida_setup._plugins._get_managed_targets", return_value={"plugins": managed, "loaders": {}}),
+        ):
+            rc = plugins_list()
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert f"referee_plugin.py (missing) -> {origin.resolve()} [ida-referee]" in out
 
 
 class TestGetManagedTargets:
@@ -210,8 +230,8 @@ class TestGetManagedTargets:
             result = _get_managed_targets()
         foo_resolved = str(Path(tmp_path / "foo.py").resolve())
         bar_resolved = str(Path(tmp_path / "bar.py").resolve())
-        assert result["plugins"][foo_resolved] == "foo-pkg"
-        assert result["loaders"][bar_resolved] == "bar-pkg"
+        assert result["plugins"]["foo"] == {"origin": foo_resolved, "dist": "foo-pkg"}
+        assert result["loaders"]["bar"] == {"origin": bar_resolved, "dist": "bar-pkg"}
 
 
 class TestPluginsLink:
