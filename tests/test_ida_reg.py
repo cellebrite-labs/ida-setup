@@ -45,6 +45,20 @@ class TestReadIdaConfigInstallDir:
         cfg.write_text(json.dumps({"Paths": {"ida-install-dir": "/opt/ida"}}))
         assert read_ida_config_install_dir(cfg) == Path("/opt/ida")
 
+    def test_reads_install_dir_app_bundle(self, tmp_path: Path) -> None:
+        """IDA >= 9.4 stores the .app bundle path directly."""
+        cfg = tmp_path / "ida-config.json"
+        val = "/Applications/IDA Professional 9.4.app"
+        cfg.write_text(json.dumps({"Paths": {"ida-install-dir": val}}))
+        assert read_ida_config_install_dir(cfg) == Path(val)
+
+    def test_normalizes_legacy_bin_dir(self, tmp_path: Path) -> None:
+        """IDA < 9.4 stores the literal Contents/MacOS bin dir."""
+        cfg = tmp_path / "ida-config.json"
+        val = "/Applications/IDA Professional 9.2.app/Contents/MacOS"
+        cfg.write_text(json.dumps({"Paths": {"ida-install-dir": val}}))
+        assert read_ida_config_install_dir(cfg) == Path("/Applications/IDA Professional 9.2.app")
+
     def test_missing_key(self, tmp_path: Path) -> None:
         cfg = tmp_path / "ida-config.json"
         cfg.write_text(json.dumps({"Paths": {}}))
@@ -67,10 +81,14 @@ class TestReadIdaConfigInstallDir:
 
 
 class TestIdaAppInstallDir:
-    def test_macos(self) -> None:
+    def test_install_dir_is_app_bundle(self) -> None:
         app = IdaApp(path=Path("/Applications/IDA Professional 9.3.app"), version=(9, 3))
-        assert app.install_dir == Path("/Applications/IDA Professional 9.3.app/Contents/MacOS")
+        assert app.install_dir == Path("/Applications/IDA Professional 9.3.app")
 
-    def test_idapyswitch_under_install_dir(self) -> None:
+    def test_bin_dir_macos(self) -> None:
         app = IdaApp(path=Path("/Applications/IDA Professional 9.3.app"), version=(9, 3))
-        assert app.idapyswitch == app.install_dir / "idapyswitch"
+        assert app.bin_dir == Path("/Applications/IDA Professional 9.3.app/Contents/MacOS")
+
+    def test_idapyswitch_under_bin_dir(self) -> None:
+        app = IdaApp(path=Path("/Applications/IDA Professional 9.3.app"), version=(9, 3))
+        assert app.idapyswitch == app.bin_dir / "idapyswitch"

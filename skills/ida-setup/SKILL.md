@@ -1,6 +1,6 @@
 ---
 name: ida-setup
-description: cli to manage IDA Pro Python runtime, venv, LaunchAgent, and plugins.
+description: IDA Pro Python runtime setup: venv, idapyswitch, LaunchAgent, plugins.
 ---
 
 # ida-setup
@@ -9,42 +9,37 @@ description: cli to manage IDA Pro Python runtime, venv, LaunchAgent, and plugin
 
 - macOS only.
 - IDA Pro >= 9.0.
-- pyenv with a framework-enabled Python 3.12+. Other Python distributions are untested and likely won't work.
+- pyenv-managed, framework-enabled Python 3.12+. Other Python sources are untested and likely won't work. If not set up, see this repo's README ("Setting up pyenv Python").
 - uv on PATH.
-
-## Installation
-
-`uv tool install -e /path/to/ida-setup`
-
-If already installed, invoke as `ida-setup`. Always pass `--yes` when running from an agent.
 
 ## Commands
 
-- `ida-setup status`: Show overall state.
-- `ida-setup [--verbose] status --probe [--import <module>]`: Launch IDA and report its Python runtime.
-- `ida-setup venv --python /path/to/python3`: Create or update `~/.idapro/venv`, install `idapro`, activate idalib, run `idapyswitch`, set up LaunchAgent. `--python` is required for initial creation (`"$(pyenv which python)"`). Re-run without `--python` after IDA upgrades.
-- `ida-setup pip <args>`: Run pip using the selected interpreter.
-- `ida-setup python <args>`: Run python using the selected interpreter.
-- `ida-setup plugin list`: Show `~/.idapro/plugins` and `~/.idapro/loaders`.
-- `ida-setup plugin link <path>... [--loader]`: Symlink into plugins (or loaders with `--loader`).
-- `ida-setup plugin unlink <name>... [--loader] [--force]`: Remove symlink.
-- `ida-setup plugin install <pip args>`: Install a package and symlink its `ida_plugins`/`ida_loaders` entry points. All args forwarded to `uv pip install`.
-- `ida-setup plugin relink`: Recreate all entry point symlinks.
+- `status`: show setup state.
+- `venv`: create/update the shared venv.
+- `pip` / `python`: run pip/python using the selected interpreter.
+- `plugin`: manage plugins/loaders. Subcommands: `list`, `link`, `unlink`, `install`, `uninstall`, `relink` (see `plugin --help`).
 
-## Python selection
+## First-time setup
 
-Commands that need an interpreter (`pip`, `python`, `plugin install`, `plugin relink`) use `--python`:
+1. Check `which ida-setup`; if missing, `uv tool install -e <this repo>`.
+2. Confirm a pyenv-managed, framework-enabled Python 3.12+ exists (`pyenv which python`); if not, see Prerequisites.
+3. `ida-setup venv --yes --python "$(pyenv which python)"`: creates the venv, installs idapro, activates idalib, runs idapyswitch, and configures the LaunchAgent.
 
-- Omitted: uses `IDAPYTHON_VENV_EXECUTABLE` env var (set by LaunchAgent), pointing into `~/.idapro/venv`. After setup use this one.
-- `--python ida`: Launches IDA, probes its runtime. Slow. Requires IDA to use venv.
-- `--python /path/to/python3`: Explicit path.
+## Running commands
 
-## IDA selection
-Auto-detects newest IDA via Spotlight. Pin with `--ida /path/to/IDA.app`.
+Always pass `--yes` on `venv`: without it, non-interactive runs may abort. Other commands don't prompt, so `--yes` there is harmless but unnecessary.
+
+Re-run `venv` (omit `--python`) after an IDA upgrade to refresh idapyswitch, idalib, and the LaunchAgent.
+
+`ida-setup --help` / `ida-setup <cmd> --help` are accurate and complete for flags and subcommands.
+
+`pip`, `python`, and `plugin install` are raw passthroughs to the underlying tool: `--help` on those goes to `uv pip`/`python`, not ida-setup's own help.
 
 ## Plugin packaging
 
-To make a plugin installable via `ida-setup plugin install`, declare entry points in `pyproject.toml`:
+Single `.py` file with manually-installed dependencies: use `plugin link`. Repo with (or where you add) a `pyproject.toml` declaring entry points: use `plugin install`, which installs the package and its dependencies, then symlinks the entry point automatically.
+
+To declare entry points in `pyproject.toml`:
 
 ```toml
 [project.entry-points."ida_plugins"]
@@ -54,10 +49,14 @@ my_plugin = "my_package.plugin_module"
 my_loader = "my_package.loader_module"
 ```
 
-Values are dotted module paths only - no `:callable` part. The module's `.py` file is symlinked into IDA's plugin/loader directory.
-Install with `ida-setup plugin install <source>` (any `uv pip install` source works).
+Values are dotted module paths only, no `:callable` part. The module's `.py` file is symlinked into IDA's plugin/loader directory.
+
+## Guardrails
+
+- `plugin link`/`unlink --force` can overwrite or delete real files and directories, not just symlinks. Confirm with the user before using `--force` on anything that isn't clearly a stray symlink.
 
 ## Gotchas
 
-- `--yes` is required when running from an agent (non-interactive).
-- If the LaunchAgent env var is not visible after setup, the user may need to log out and back in.
+- `venv --python <path>` is required only for the first creation.
+- `venv` rejects `--python ida`: before a venv exists, IDA's embedded Python reports its own binary as `sys.executable`, so there's nothing valid to probe. Use an explicit path.
+- After LaunchAgent setup, if `IDAPYTHON_VENV_EXECUTABLE` isn't visible yet, the user may need to log out and back in.

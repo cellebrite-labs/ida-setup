@@ -307,12 +307,15 @@ def _unlink_entrypoint_links(entries: dict[str, dict[str, str | None]], target_d
 def plugins_install(*, pip_args: list[str], python_exe: Path) -> int:
     """Install a plugin package and symlink its ida_plugins/ida_loaders entry points."""
     env = clean_env_for_python_exec()
+    is_help = "-h" in pip_args or "--help" in pip_args
 
-    # Snapshot entry points before install.
-    before = _discover_entrypoints(python_exe)
+    # Snapshot entry points before install (skip for a pure --help request; nothing to diff).
+    before = None if is_help else _discover_entrypoints(python_exe)
 
     # Install the package into the target interpreter's environment.
-    run(["uv", "pip", "install", *pip_args, "--python", str(python_exe)], check=True, env=env)
+    res = run(["uv", "pip", "install", *pip_args, "--python", str(python_exe)], check=True, env=env)
+    if is_help:
+        return res.returncode
 
     # Snapshot after install; only link new or changed entry points.
     after = _discover_entrypoints(python_exe)

@@ -85,6 +85,19 @@ class TestDiscoverEntrypoints:
 
 
 class TestPluginsInstall:
+    def test_help_passthrough_skips_entrypoint_diff(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A bare --help/-h request should not snapshot/diff entry points."""
+        mock_result = MagicMock(returncode=0)
+
+        with patch("ida_setup._plugins.run", return_value=mock_result) as mock_run:
+            rc = plugins_install(pip_args=["--help"], python_exe=Path("/usr/bin/python3"))
+
+        assert rc == 0
+        mock_run.assert_called_once()
+        out = capsys.readouterr().out
+        assert "no new ida_plugins or ida_loaders entry points found" not in out
+        assert "ok: installed" not in out
+
     def test_installs_and_links_plugins(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         origin = tmp_path / "src" / "myplugin.py"
         origin.parent.mkdir()

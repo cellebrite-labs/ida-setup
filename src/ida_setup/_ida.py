@@ -52,6 +52,23 @@ def read_python3_target_dll(reg_path: Path = IDA_REG_PATH) -> str | None:
 IDA_CONFIG_PATH = Path.home() / ".idapro" / "ida-config.json"
 
 
+def _normalize_install_dir(install_dir: Path) -> Path:
+    """Normalize a Contents/MacOS bin dir back to its .app bundle.
+
+    py-activate-idalib.py itself normalizes this way since IDA 9.4, but
+    older versions store the literal Contents/MacOS bin dir.
+    Normalize both to the .app bundle path so they compare equal to IdaApp.install_dir.
+    """
+    if (
+        sys.platform == "darwin"
+        and install_dir.name == "MacOS"
+        and install_dir.parent.name == "Contents"
+        and install_dir.parent.parent.suffix == ".app"
+    ):
+        return install_dir.parent.parent
+    return install_dir
+
+
 def read_ida_config_install_dir(config_path: Path = IDA_CONFIG_PATH) -> Path | None:
     """Read Paths.ida-install-dir from ida-config.json (written by py-activate-idalib)."""
     try:
@@ -59,7 +76,7 @@ def read_ida_config_install_dir(config_path: Path = IDA_CONFIG_PATH) -> Path | N
         val = data["Paths"]["ida-install-dir"]
         if not isinstance(val, str) or not val:
             return None
-        return Path(val)
+        return _normalize_install_dir(Path(val))
     except (OSError, KeyError, TypeError, json.JSONDecodeError):
         return None
 
@@ -71,7 +88,12 @@ class IdaApp:
 
     @property
     def install_dir(self) -> Path:
-        """The IDA binaries directory (what py-activate-idalib stores)."""
+        """The IDA install dir (what py-activate-idalib stores in ida-config.json)."""
+        return self.path
+
+    @property
+    def bin_dir(self) -> Path:
+        """The directory containing IDA's binaries (idapyswitch, etc.)."""
         if sys.platform == "darwin":
             return self.path / "Contents" / "MacOS"
         return self.path
@@ -79,7 +101,7 @@ class IdaApp:
     @property
     def idapyswitch(self) -> Path:
         """Path to the idapyswitch binary for this IDA installation."""
-        return self.install_dir / "idapyswitch"
+        return self.bin_dir / "idapyswitch"
 
 
 def switch_idapython(*, app: IdaApp, python_library: Path) -> None:

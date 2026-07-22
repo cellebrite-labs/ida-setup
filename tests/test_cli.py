@@ -572,7 +572,7 @@ class TestOfferLaunchagent:
 
         mock_la.assert_called_once_with(venv_python_exe=venv_python)
 
-    def test_non_interactive_prints_tip(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_non_interactive_aborts(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         from ida_setup._common import cfg
         from ida_setup.cli import _offer_launchagent
 
@@ -585,10 +585,10 @@ class TestOfferLaunchagent:
             patch("ida_setup.cli.install_launch_agent") as mock_la,
         ):
             mock_stdin.isatty.return_value = False
-            _offer_launchagent(venv_python=venv_python)
+            with pytest.raises(SystemExit, match="pass --yes"):
+                _offer_launchagent(venv_python=venv_python)
 
         mock_la.assert_not_called()
-        assert "tip:" in capsys.readouterr().out
 
     def test_user_accepts(self, tmp_path: Path) -> None:
         from ida_setup._common import cfg
@@ -696,7 +696,6 @@ class TestCmdStatusNonProbe:
             patch("ida_setup.cli.read_python3_target_dll", return_value=None),
             patch("ida_setup.cli.resolve_base_prefix", return_value=None),
             patch("ida_setup.cli.PLIST_PATH", Path("/nonexistent")),
-            patch("ida_setup.cli.LEGACY_IDALIB_VENV_DIR", Path("/nonexistent")),
         ):
             rc = cmd_status(args)
 
@@ -714,7 +713,6 @@ class TestCmdStatusNonProbe:
             patch("ida_setup.cli.read_python3_target_dll", return_value=None),
             patch("ida_setup.cli.resolve_base_prefix", return_value=None),
             patch("ida_setup.cli.PLIST_PATH", Path("/nonexistent")),
-            patch("ida_setup.cli.LEGACY_IDALIB_VENV_DIR", Path("/nonexistent")),
         ):
             rc = cmd_status(args)
 
@@ -737,7 +735,6 @@ class TestCmdStatusNonProbe:
             patch("ida_setup.cli.read_python3_target_dll", return_value=None),
             patch("ida_setup.cli.resolve_base_prefix", return_value=None),
             patch("ida_setup.cli.PLIST_PATH", Path("/nonexistent")),
-            patch("ida_setup.cli.LEGACY_IDALIB_VENV_DIR", Path("/nonexistent")),
             patch("ida_setup.cli.run", return_value=MagicMock(returncode=0)),
         ):
             rc = cmd_status(args)
@@ -762,7 +759,6 @@ class TestCmdStatusNonProbe:
             patch("ida_setup.cli.read_python3_target_dll", return_value=str(dylib)),
             patch("ida_setup.cli.resolve_base_prefix", return_value=prefix),
             patch("ida_setup.cli.PLIST_PATH", Path("/nonexistent")),
-            patch("ida_setup.cli.LEGACY_IDALIB_VENV_DIR", Path("/nonexistent")),
         ):
             rc = cmd_status(args)
 
@@ -787,32 +783,9 @@ class TestCmdStatusNonProbe:
             patch("ida_setup.cli.read_python3_target_dll", return_value=str(dylib)),
             patch("ida_setup.cli.resolve_base_prefix", return_value=prefix),
             patch("ida_setup.cli.PLIST_PATH", Path("/nonexistent")),
-            patch("ida_setup.cli.LEGACY_IDALIB_VENV_DIR", Path("/nonexistent")),
         ):
             rc = cmd_status(args)
 
         assert rc == 0
         out = capsys.readouterr().out
         assert "MISMATCH" in out
-
-    def test_shows_legacy_warning(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        from ida_setup._ida import IdaApp
-
-        legacy_dir = tmp_path / "idalib-venv"
-        legacy_dir.mkdir()
-        app = IdaApp(path=Path("/fake/IDA.app"), version=(9, 2))
-        args = self._make_status_args()
-
-        with (
-            patch("ida_setup.cli.resolve_ida_app", return_value=app),
-            patch("ida_setup.cli.get_venv_python_exe", return_value=None),
-            patch("ida_setup.cli.read_python3_target_dll", return_value=None),
-            patch("ida_setup.cli.resolve_base_prefix", return_value=None),
-            patch("ida_setup.cli.PLIST_PATH", Path("/nonexistent")),
-            patch("ida_setup.cli.LEGACY_IDALIB_VENV_DIR", legacy_dir),
-        ):
-            rc = cmd_status(args)
-
-        assert rc == 0
-        out = capsys.readouterr().out
-        assert "stale" in out

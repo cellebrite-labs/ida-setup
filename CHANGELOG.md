@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-22
+
+### Fixed
+- Fixed `status` always reporting a stale `ida-config.json` on IDA >= 9.4, whose `py-activate-idalib.py` now stores the `.app` bundle path instead of the `Contents/MacOS` binaries path; `ida-setup` now handles both formats.
+- Fixed `plugin install --help` printing a spurious "no new entry points found" message instead of just showing help.
+
+### Changed
+- Non-interactive `venv` without `--yes` now aborts instead of silently skipping LaunchAgent setup.
+- idalib activation no longer passes an explicit install directory; it relies on `py-activate-idalib.py`'s self-detection instead.
+
+### Removed
+- Removed the stale `~/.idapro/idalib-venv` detection from `ida-setup status` (the legacy idalib-venv workflow was retired long ago).
+
 ## [0.4.0] - 2026-06-23
 
 ### Added

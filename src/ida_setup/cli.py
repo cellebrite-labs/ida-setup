@@ -13,7 +13,6 @@ from ida_setup._common import (
     _GREEN,
     _RED,
     _YELLOW,
-    LEGACY_IDALIB_VENV_DIR,
     LOADERS_DIR,
     PLIST_PATH,
     PLUGINS_DIR,
@@ -22,6 +21,7 @@ from ida_setup._common import (
     cfg,
     configure_logging,
     get_venv_python_exe,
+    non_interactive_without_yes,
     require_macos,
     resolve_base_prefix,
     resolve_python_for_cli,
@@ -189,12 +189,6 @@ def cmd_status(args: argparse.Namespace) -> int:
     else:
         print(f"  {_style(_DIM, 'skipped (no venv)')}")
 
-    # Legacy idalib-venv detection.
-    if LEGACY_IDALIB_VENV_DIR.exists():
-        print(f"\n{_style(_YELLOW, f'warning: stale {LEGACY_IDALIB_VENV_DIR} found')}")
-        print(f"  idalib now uses the shared venv at {VENV_DIR}")
-        print(f"  safe to remove: rm -rf {LEGACY_IDALIB_VENV_DIR}")
-
     return 0
 
 
@@ -270,9 +264,8 @@ def _offer_launchagent(*, venv_python: Path) -> None:
         install_launch_agent(venv_python_exe=venv_python)
         return
 
-    if not sys.stdin.isatty():
-        print(_style(_DIM, "tip: run `ida-setup venv` to set up the LaunchAgent."))
-        return
+    if non_interactive_without_yes():
+        raise SystemExit("non-interactive session; pass --yes to also configure the LaunchAgent.")
 
     ans = input(
         "Set up a LaunchAgent so Finder-launched IDA uses this venv?\n"

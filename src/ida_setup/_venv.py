@@ -27,7 +27,7 @@ json.dump(
 
 def _idalib_python_dir(app: IdaApp) -> Path:
     """Return the idalib/python directory inside the IDA app bundle."""
-    d = app.path / "Contents" / "MacOS" / "idalib" / "python"
+    d = app.bin_dir / "idalib" / "python"
     if not d.is_dir():
         raise SystemExit(
             f"idalib python directory not found: {d}\n"
@@ -154,13 +154,19 @@ def install_idapro_package(*, app: IdaApp, venv_python: Path) -> None:
 
 
 def run_py_activate_idalib(*, app: IdaApp, venv_python: Path) -> None:
-    """Run py-activate-idalib.py to configure ida-config.json."""
-    script = _py_activate_script(app)
-    ida_dir = str(app.path / "Contents" / "MacOS")
+    """Run py-activate-idalib.py to configure ida-config.json.
 
-    print(f"\n{_style(_BOLD, 'idalib:')} activating for {_style(_DIM, ida_dir)}")
+    No -d/--ida-install-dir is passed: we always run the script in place from
+    inside the target IDA installation, and the script self-detects its
+    install dir from its own file location (two levels up from itself),
+    which resolves to the same directory we'd otherwise compute ourselves.
+    Relying on that avoids duplicating the vendor's own path logic here.
+    """
+    script = _py_activate_script(app)
+
+    print(f"\n{_style(_BOLD, 'idalib:')} activating for {_style(_DIM, str(app.install_dir))}")
     run(
-        [str(venv_python), str(script), "-d", ida_dir],
+        [str(venv_python), str(script)],
         env=clean_env_for_python_exec(),
     )
 

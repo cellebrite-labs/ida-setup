@@ -36,9 +36,6 @@ def _style(code: str, text: str) -> str:
 
 VENV_DIR = Path(os.path.expanduser("~/.idapro/venv"))
 
-# Legacy idalib-venv path. Only used for stale-directory detection in status.
-LEGACY_IDALIB_VENV_DIR = Path(os.path.expanduser("~/.idapro/idalib-venv"))
-
 PLIST_LABEL = "com.cellebrite.ida-setup.env"
 PLIST_PATH = Path(os.path.expanduser(f"~/Library/LaunchAgents/{PLIST_LABEL}.plist"))
 
@@ -61,11 +58,16 @@ def configure_logging(verbose: bool) -> None:
     logging.basicConfig(level=level, format="%(levelname)s: %(message)s")
 
 
+def non_interactive_without_yes() -> bool:
+    """True if running non-interactively without --yes (can't prompt, no consent given)."""
+    return not cfg.yes and not sys.stdin.isatty()
+
+
 def confirm(prompt: str) -> None:
     """Prompt user for confirmation; raise SystemExit on rejection."""
     if cfg.yes:
         return
-    if not sys.stdin.isatty():
+    if non_interactive_without_yes():
         raise SystemExit("non-interactive session; pass --yes to proceed")
 
     ans = input(f"CONFIRM: {prompt} [y/N] ").strip().lower()
