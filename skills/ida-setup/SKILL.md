@@ -1,6 +1,6 @@
 ---
 name: ida-setup
-description: IDA Pro Python runtime setup: venv, idapyswitch, LaunchAgent, plugins.
+description: "IDA Pro Python runtime setup: venv, idapyswitch, LaunchAgent, plugins."
 ---
 
 # ida-setup

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-07-22
+
+### Fixed
+- Fixed the `ida-setup` skill's YAML frontmatter: the `description` value contained an unquoted colon and is now quoted so it parses as a plain string.
+
 ## [0.4.1] - 2026-07-22
 
 ### Fixed
